@@ -53,14 +53,20 @@ class DigitalSignal:
         i = 0
         for bit in self.signal: # por cada bit de la señal digital
             if (bit == 0): # si el bit es igual a 0
-                tn = np.arange(init,self.time[i] + self.time[i]/100, 1/(2*fc))
+                if(self.time[i] == self.time[-1]):
+                    tn = np.arange(init,self.time[i] + self.time[i]/100, 1/(2*fc))
+                else:     
+                    tn = np.arange(init,self.time[i], 1/(2*fc))
                 for t_i in tn: # por cada elemento de arreglo de tiempo tn
                     value = 0 # se calcula el coseno en el tiempo t__i
                     self.signalModulated.append(value) # se agrega el valor a arreglo de valores modulados
                     t.append(t_i) # se agrga t_i al arreglo de tiempo der salida
             elif (bit == 1): # En caso de que el bit sea 1 es lo mismo quie en el caso anteriorm pero con 
                 # la frecuencia cuando el bit es igual a 1
-                tn = np.arange(init,self.time[i] + self.time[i]/100, 1/(2*fc))
+                if(self.time[i] == self.time[-1]):
+                    tn = np.arange(init,self.time[i] + self.time[i]/100, 1/(2*fc))
+                else:     
+                    tn = np.arange(init,self.time[i], 1/(2*fc))
                 for t_i in tn:
                     value = cosFunction(t_i,fc)
                     self.signalModulated.append(value)
@@ -86,6 +92,7 @@ class DigitalSignal:
         interpolatedF = interpolate.interp1d(self.modTime, self.signalModulated)
         interp = interpolatedF(self.time)
         for result in interp:
+            print(result)
             if (result == 0):
                 self.signalDemod.append(0)
             else:
@@ -96,9 +103,10 @@ class DigitalSignal:
 if __name__ == "__main__":
 
     firstSignal = DigitalSignal(10)
-    firstSignal.randomSignal(10)
+    firstSignal.randomSignal(5)
     firstSignal.ookMod(100)
     firstSignal.demodulate()
+    print(firstSignal.bitTime)
     print(firstSignal.signal)
     print(firstSignal.time)
 

@@ -30,6 +30,14 @@ t_s = 1/n #tiempo símbolo
 def cosFunction(t,fc):
     return A*np.cos(2*np.pi*fc*t)
 
+def calculateBER(original, demodulated):
+    diferent = 0
+    for i in range(0,len(original)):
+        if(original[i] != demodulated[i]):
+            diferent+=1
+    ber = diferent/len(original)
+    return ber 
+
 class DigitalSignal:
     def __init__(self,bps): 
         self.signal = []
@@ -84,33 +92,25 @@ class DigitalSignal:
         plt.title(title)
         plt.xlabel(xLabel)
         plt.ylabel(yLabel)
-    def demodulate(self):
+    def demodulate(self,timeArray,signalArray):
         interpolatedF = interpolate.interp1d(self.modTime, self.signalModulated)
         maxValue = 0
         i = 0
-        for step in self.modTime:
+        signalDemodulated = []
+        for step in timeArray:
             if step in self.time:
-                print(maxValue)
                 if (maxValue >= A):
-                    self.signalDemod.append(1)
+                    signalDemodulated.append(1)
                 else: 
-                    self.signalDemod.append(0)
-                maxValue = abs(self.signalModulated[i])
+                    signalDemodulated.append(0)
+                maxValue = abs(signalArray[i])
             else:
-                if(maxValue < self.signalModulated[i]):
-                    maxValue = self.signalModulated[i]
+                if(maxValue < signalArray[i]):
+                    maxValue = signalArray[i]
             i+=1
+        return signalDemodulated
 
-
-        ''' interp = interpolatedF(timeArr)
-        for result in interp:
-            #print(result)
-            if (result == 0):
-                self.signalDemod.append(0)
-            else:
-                self.signalDemod.append(1) '''
-    def awgnAdd(self,SNR):
-        snr_db = 10 * np.log10(SNR)
+    def awgnAdd(self,snr_db): 
         self.signalPower = np.array(self.signalModulated)**2
         self.signalPowerDb = 10 * np.log10(self.signalPower)
         sig_avg = abs(np.mean(self.signalPower))
@@ -118,37 +118,43 @@ class DigitalSignal:
         noise_avg_db = sig_avg_db - snr_db
         noise_avg = 10 ** (noise_avg_db / 10)
         noise = np.random.normal(0, np.sqrt(noise_avg), len(self.signalModulated))
-        self.signalModulated = np.array(self.signalModulated) + noise
-        print(0)
+        signalWithNoise = np.array(self.signalModulated) + noise
+        return signalWithNoise
         #print(self.noiseSignal)
-
 
 
 if __name__ == "__main__":
 
-    firstSignal = DigitalSignal(10)
-    firstSignal.randomSignal(6)
-    firstSignal.ookMod(100)
-    
-    #print(firstSignal.bitTime)
-    #print(firstSignal.signal)
-    #print(firstSignal.time)
+    exampleSignal = DigitalSignal(10)
+    exampleSignal.randomSignal(6)
+    exampleSignal.ookMod(100)
 
     plt.figure(1)
-    plt.plot(firstSignal.modTime,firstSignal.signalModulated)
+    plt.plot(exampleSignal.modTime,exampleSignal.signalModulated)
     plt.title("Señal modulada")
     plt.xlabel("f(t)")
     plt.ylabel("tiempo")   
 
-    firstSignal.awgnAdd(1)
-    firstSignal.demodulate()
-    print(firstSignal.signalDemod)
+    noiseExample = exampleSignal.awgnAdd(10)
+    demExample = exampleSignal.demodulate(exampleSignal.modTime,noiseExample)
+    #print(firstSignal.signalDemod)
 
     plt.figure(2)
-    plt.plot(firstSignal.modTime, firstSignal.signalModulated)
+    plt.plot(exampleSignal.modTime, noiseExample)
     plt.title('Signal with noise')
     plt.ylabel('Voltage (V)')
     plt.xlabel('Time (s)')
+
+    firstSignal = DigitalSignal(5)
+    firstSignal.randomSignal(10**3)
+    firstSignal.ookMod(100)
+    snr_levels = [1]
+    for level in snr_levels:
+        noiseSignal = firstSignal.awgnAdd(level)
+        demSignal = firstSignal.demodulate(firstSignal.modTime,noiseSignal)
+        ber = calculateBER(firstSignal.signal,demSignal)
+        print(ber)
+
 
 
     plt.show()

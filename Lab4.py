@@ -53,16 +53,30 @@ class DigitalSignal:
             self.signal.append(random.randrange(0,2))
             self.time.append(init)
             init= init + self.bitTime
+    def setBps(self,bps):
+        self.bitTime = 1/bps
+        init = self.bitTime
+        self.time = []
+        for i in range(0, len(self.signal)):
+            self.time.append(init)
+            init= init + self.bitTime
+
     def ookMod(self,fc):
         t = [] # arreglo de tiempo de la señal
         init = 0 # tiempo de inicio de la señal
         i = 0
-        self.sampleStep = self.bitTime/(10*fc)
+        self.sampleStep = self.bitTime/(2*fc)
         for bit in self.signal: # por cada bit de la señal digital
             if(self.time[i] == self.time[-1]):
-                tn = np.arange(init,self.time[i] + 2*self.sampleStep, self.sampleStep)
-            else:     
-                tn = np.arange(init,self.time[i], self.sampleStep)
+                if bit == 1:
+                    tn = np.arange(init,self.time[i] + 2*self.sampleStep, self.sampleStep)
+                if bit == 0:
+                    tn = np.arange(init,self.time[i] + 2*self.sampleStep, 10)
+            else:
+                if bit == 1:     
+                    tn = np.arange(init,self.time[i], self.sampleStep)
+                if bit == 0:
+                    tn = np.arange(init,self.time[i], 10)
             if (bit == 0): # si el bit es igual a 0
                 for t_i in tn: # por cada elemento de arreglo de tiempo tn
                     value = 0 # se calcula el coseno en el tiempo t__i
@@ -93,12 +107,13 @@ class DigitalSignal:
         plt.xlabel(xLabel)
         plt.ylabel(yLabel)
     def demodulate(self,timeArray,signalArray):
-        interpolatedF = interpolate.interp1d(self.modTime, self.signalModulated)
+        #interpolatedF = interpolate.interp1d(self.modTime, self.signalModulated)
         maxValue = 0
         i = 0
         signalDemodulated = []
         for step in timeArray:
-            if step in self.time:
+            if step in self.time or step == timeArray[-1]:
+                #print(step)
                 if (maxValue >= A):
                     signalDemodulated.append(1)
                 else: 
@@ -120,7 +135,6 @@ class DigitalSignal:
         noise = np.random.normal(0, np.sqrt(noise_avg), len(self.signalModulated))
         signalWithNoise = np.array(self.signalModulated) + noise
         return signalWithNoise
-        #print(self.noiseSignal)
 
 
 if __name__ == "__main__":
@@ -135,7 +149,7 @@ if __name__ == "__main__":
     plt.xlabel("f(t)")
     plt.ylabel("tiempo")   
 
-    noiseExample = exampleSignal.awgnAdd(10)
+    noiseExample = exampleSignal.awgnAdd(0.5)
     demExample = exampleSignal.demodulate(exampleSignal.modTime,noiseExample)
     #print(firstSignal.signalDemod)
 
@@ -145,18 +159,24 @@ if __name__ == "__main__":
     plt.ylabel('Voltage (V)')
     plt.xlabel('Time (s)')
 
-    firstSignal = DigitalSignal(5)
-    firstSignal.randomSignal(10**3)
-    firstSignal.ookMod(100)
-    snr_levels = [1]
-    for level in snr_levels:
-        noiseSignal = firstSignal.awgnAdd(level)
-        demSignal = firstSignal.demodulate(firstSignal.modTime,noiseSignal)
-        ber = calculateBER(firstSignal.signal,demSignal)
-        print(ber)
+    snr_levels = [1,1.2,2,2.5,3,4,5,7,9,10]
+    bps = [5,1,10]
+    for b in bps:
+        if b == bps[0]:
+            firstSignal = DigitalSignal(b)
+            firstSignal.randomSignal(10**4)
+        else:
+            firstSignal.setBps(b)
+        
+        firstSignal.ookMod(10)
 
+        for level in snr_levels:
+            noiseSignal = firstSignal.awgnAdd(level)
+            demSignal = firstSignal.demodulate(firstSignal.modTime,noiseSignal)
+            ber = calculateBER(firstSignal.signal,demSignal)
+            print(ber)
 
-
+    
     plt.show()
 
 

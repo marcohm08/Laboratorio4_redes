@@ -18,6 +18,7 @@ import random
 import copy
 
 import sys
+from urllib3.connectionpool import xrange
 
 
 
@@ -32,7 +33,7 @@ def cosFunction(t,fc):
 
 def calculateBER(original, demodulated):
     diferent = 0
-    for i in range(0,len(original)):
+    for i in xrange(0,len(original)):
         if(original[i] != demodulated[i]):
             diferent+=1
     ber = diferent/len(original)
@@ -41,14 +42,16 @@ def calculateBER(original, demodulated):
 class DigitalSignal:
     def __init__(self,bps): 
         self.signal = []
-        self.signalModulated = []
         self.signalDemod = []
         self.time = []
         self.modTime = []
         self.bps = bps
         self.bitTime = 1/bps
-    def randomSignal(self,lenght):
+    def randomSignal(self,lenght,seed):
         init = self.bitTime
+        random.seed(seed)
+        """ self.signal = [random.randrange(0,2) for n in range(0,lenght)]
+        self.time = [init*n + init for n in range(0,lenght)] """
         for i in range(0,lenght):
             self.signal.append(random.randrange(0,2))
             self.time.append(init)
@@ -65,33 +68,29 @@ class DigitalSignal:
         t = [] # arreglo de tiempo de la señal
         init = 0 # tiempo de inicio de la señal
         i = 0
+        modulated = []
         self.sampleStep = self.bitTime/(2*fc)
         for bit in self.signal: # por cada bit de la señal digital
-            if(self.time[i] == self.time[-1]):
-                if bit == 1:
-                    tn = np.arange(init,self.time[i] + 2*self.sampleStep, self.sampleStep)
-                if bit == 0:
-                    tn = np.arange(init,self.time[i] + 2*self.sampleStep, 10)
-            else:
-                if bit == 1:     
-                    tn = np.arange(init,self.time[i], self.sampleStep)
-                if bit == 0:
-                    tn = np.arange(init,self.time[i], 10)
+            bitSignal = []    
+            tn = np.linspace(init,self.time[i], 2*fc)
+        
             if (bit == 0): # si el bit es igual a 0
                 for t_i in tn: # por cada elemento de arreglo de tiempo tn
-                    value = 0 # se calcula el coseno en el tiempo t__i
-                    self.signalModulated.append(value) # se agrega el valor a arreglo de valores modulados
+                    value = 0.0 # se calcula el coseno en el tiempo t__i
+                    bitSignal.append(value) # se agrega el valor a arreglo de valores modulados
                     t.append(t_i) # se agrga t_i al arreglo de tiempo der salida
             elif (bit == 1): # En caso de que el bit sea 1 es lo mismo quie en el caso anterior pero con 
                 # la frecuencia cuando el bit es igual a 1
                 for t_i in tn:
                     value = cosFunction(t_i,fc)
                     #print(value)
-                    self.signalModulated.append(value)
-                    t.append(t_i)     
+                    bitSignal.append(value)
+                    t.append(t_i)   
+            modulated.append(bitSignal)  
             init = self.time[i]
             i+=1
         self.modTime = t
+        self.signalModulated = np.array(modulated)
     # Method to plot a grapf using matplotlib
     # Input
     #   number: number of plot
@@ -111,18 +110,12 @@ class DigitalSignal:
         maxValue = 0
         i = 0
         signalDemodulated = []
-        for step in timeArray:
-            if step in self.time or step == timeArray[-1]:
-                #print(step)
-                if (maxValue >= A):
-                    signalDemodulated.append(1)
-                else: 
-                    signalDemodulated.append(0)
-                maxValue = abs(signalArray[i])
+        for bitSignal in signalArray:
+            maxValue = np.max(bitSignal)
+            if maxValue >= A:
+                signalDemodulated.append(1)
             else:
-                if(maxValue < signalArray[i]):
-                    maxValue = signalArray[i]
-            i+=1
+                signalDemodulated.append(0)
         return signalDemodulated
 
     def awgnAdd(self,snr_db): 
@@ -132,39 +125,56 @@ class DigitalSignal:
         sig_avg_db = 10 * np.log10(sig_avg)
         noise_avg_db = sig_avg_db - snr_db
         noise_avg = 10 ** (noise_avg_db / 10)
-        noise = np.random.normal(0, np.sqrt(noise_avg), len(self.signalModulated))
-        signalWithNoise = np.array(self.signalModulated) + noise
-        return signalWithNoise
+        noise = np.random.normal(0, np.sqrt(noise_avg), len(self.modTime))
+        signalWithNoise = []
+        i = 0
+        for bitSignal in self.signalModulated:
+            noiseBitSignal = []
+            for value in bitSignal:
+                noiseBitSignal.append(value + noise[i])
+                i+=1
+            signalWithNoise.append(noiseBitSignal)
+        return np.array(signalWithNoise)
 
 
 if __name__ == "__main__":
 
     exampleSignal = DigitalSignal(10)
-    exampleSignal.randomSignal(6)
+    exampleSignal.randomSignal(6,4)
     exampleSignal.ookMod(100)
+    signal1d = exampleSignal.signalModulated.ravel()
 
     plt.figure(1)
-    plt.plot(exampleSignal.modTime,exampleSignal.signalModulated)
+    plt.plot(exampleSignal.modTime,signal1d)
     plt.title("Señal modulada")
     plt.xlabel("f(t)")
     plt.ylabel("tiempo")   
 
-    noiseExample = exampleSignal.awgnAdd(0.5)
+    noiseExample = exampleSignal.awgnAdd(10)
     demExample = exampleSignal.demodulate(exampleSignal.modTime,noiseExample)
-    #print(firstSignal.signalDemod)
 
     plt.figure(2)
-    plt.plot(exampleSignal.modTime, noiseExample)
+    plt.plot(exampleSignal.modTime, noiseExample.flatten())
     plt.title('Signal with noise')
     plt.ylabel('Voltage (V)')
     plt.xlabel('Time (s)')
 
-    snr_levels = [1,1.2,2,2.5,3,4,5,7,9,10]
-    bps = [5,1,10]
+    fig, axs = plt.subplots(2)
+    fig.suptitle('Original vs Demodulada')
+    axs[0].step(exampleSignal.time, exampleSignal.signal)
+    axs[1].step(exampleSignal.time,demExample)
+    
+
+
+
+    snr_levels = [1,1.2,2,2.5,3,4,5,7,8,8.5]
+    bps = [1,4,7]
+    bersPerSignal = []
     for b in bps:
+        bers = []
         if b == bps[0]:
             firstSignal = DigitalSignal(b)
-            firstSignal.randomSignal(10**4)
+            firstSignal.randomSignal(10**5,5)
         else:
             firstSignal.setBps(b)
         
@@ -174,9 +184,19 @@ if __name__ == "__main__":
             noiseSignal = firstSignal.awgnAdd(level)
             demSignal = firstSignal.demodulate(firstSignal.modTime,noiseSignal)
             ber = calculateBER(firstSignal.signal,demSignal)
+            bers.append(ber)
             print(ber)
+        bersPerSignal.append(bers)
 
-    
+    plt.figure(4)
+    plt.plot(snr_levels,bersPerSignal[0],label = str(bps[0]))
+    plt.plot(snr_levels,bersPerSignal[1],label = str(bps[1]))
+    plt.plot(snr_levels,bersPerSignal[2],label = str(bps[2]))
+    plt.title('BER vs SNR')
+    plt.ylabel('BER')
+    plt.xlabel('SNR')
+    plt.legend()
+
     plt.show()
 
 
